@@ -5,7 +5,9 @@ List<RecomCard> newsList = [
   RecomCard(Article(
       newsAuthor: 'BBC News',
       newsDate: 'DateTime(DateTime(DateTime.daysPerWeek).day)',
-      newsImage:
+      newsTopic: '',
+      newsUrl: '',
+      media:
           'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIjXgWZk1TCbW6pKaPu_x0lgTL4mPHxF-RSQ&usqp=CAU',
       newsTitle: 'Scammers profit from Turkey-Syria earthquake',
       content: 'content'))
@@ -15,7 +17,9 @@ RecomCard getArticleList() {
   return RecomCard(Article(
       newsAuthor: 'BBC News',
       newsDate: 'DateTime(DateTime(DateTime.daysPerWeek).day)',
-      newsImage:
+      newsTopic: '',
+      newsUrl: '',
+      media:
           'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIjXgWZk1TCbW6pKaPu_x0lgTL4mPHxF-RSQ&usqp=CAU',
       newsTitle: 'Scammers profit from Turkey-Syria earthquake',
       content: 'content'));

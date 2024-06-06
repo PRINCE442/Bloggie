@@ -1,18 +1,120 @@
+import 'dart:convert';
+
+import 'package:bloggie/Models/NewsList.dart';
 import 'package:bloggie/Navigations/BottomTabBar.dart';
 import 'package:bloggie/Widgets/newsCard.dart';
 import 'package:bloggie/Widgets/recomCard.dart';
-import 'package:bloggie/constants.dart';
+import 'package:bloggie/Widgets/request_queue.dart';
+import 'package:http/http.dart' as http;
 
+import 'package:bloggie/Screens/HomeScreen.dart';
 import 'package:flutter/material.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+  final Article? article;
+
+  const DiscoverScreen({super.key, this.article});
 
   @override
   State<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
+  String selectedCategory = 'news';
+  List<Article>? categoryNewsItems;
+
+  bool _isFetching = false;
+  late var requestQueue = RequestQueue();
+
+  @override
+  void initState() {
+    super.initState();
+    fetchCategoryNews(selectedCategory);
+    requestQueue = RequestQueue();
+  }
+
+  List<Article> _filterDuplicateArticles(List<Article> articles) {
+    final uniqueArticles = <Article>{};
+    final seenTitles = <String>{};
+
+    for (final article in articles) {
+      if (!seenTitles.contains(article.newsTitle)) {
+        seenTitles.add(article.newsTitle);
+        uniqueArticles.add(article);
+      }
+    }
+
+    return uniqueArticles.toList();
+  }
+
+  Future<List<Article>?> fetchCategoryNews(String category) async {
+    print('fetchCategoryNews called with category: $category');
+    return requestQueue.enqueue(() async {
+      if (_isFetching ||
+          category == selectedCategory && categoryNewsItems != null) {
+        return categoryNewsItems;
+      }
+      setState(() {
+        _isFetching = true;
+      });
+
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+
+        final url =
+            'https://api.newscatcherapi.com/v2/latest_headlines?lang=en&countries=FR,DE,IL,SA&topic=${category.toLowerCase()}';
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {'x-api-key': 'pTicM1Rrp-AqsVAgkdh5_Rgqko8Md5A_COfpZ01qArU'},
+        );
+
+        print('API Response: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> jsonData = json.decode(response.body);
+          final List<dynamic> newsArticles = jsonData['articles'];
+          categoryNewsItems = _filterDuplicateArticles(newsArticles
+              .map((article) =>
+                  Article.fromJson(article as Map<String, dynamic>))
+              .toList());
+
+          setState(() {
+            selectedCategory = category;
+
+            _isFetching = false;
+          });
+          print('Fetched news articles: ${categoryNewsItems!.length}');
+          for (var article in categoryNewsItems!) {
+            print('Article Category: ${article.newsTopic}');
+          }
+          return categoryNewsItems!;
+        } else if (response.statusCode == 429) {
+          // Rate limit exceeded, introduce a delay before retrying
+          await Future.delayed(const Duration(seconds: 4));
+          return fetchCategoryNews(category);
+        } else {
+          print('Failed to fetch news: ${response.statusCode}');
+          print('Fetching news for category: $category');
+          return [];
+        }
+      } catch (e) {
+        print('Error fetching news: $e');
+        return [];
+      } finally {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    });
+  }
+
+  void _handleCategoryButtonPress(String category) async {
+    final categoryNews = await fetchCategoryNews(category);
+    setState(() {
+      categoryNewsItems = categoryNews;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     TextEditingController _searchController = TextEditingController();
@@ -89,94 +191,62 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             const SizedBox(
               height: 20,
             ),
-            const SingleChildScrollView(
+            SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Padding(
-                padding: EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(8.0),
                 child: Row(
                   children: [
-                    CategoryCard(category: 'All'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Politics'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Sports'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Education'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Gaming'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Socials'),
-                  ],
+                    'News',
+                    'Politics',
+                    'Sport',
+                    'World',
+                    'Gaming',
+                    'Finance',
+                    'Tech',
+                    'Entertainment',
+                    'Business',
+                    'Economics',
+                    'Music',
+                    'Science',
+                    'Travel',
+                    'Beauty',
+                    'Food',
+                    'Energy'
+                  ].map((category) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10.0),
+                      child: CategoryCard(
+                        category: category,
+                        onTap: () {
+                          print('hellow orld $category');
+                          _handleCategoryButtonPress(category);
+                        },
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
             ),
             const SizedBox(
               height: 22.0,
             ),
-            getArticleList(),
-            getArticleList(),
-            getArticleList(),
-            getArticleList(),
-
-            // RecomCard(
-            //     imagepath:
-            //         'https://www.channelstv.com/wp-content/uploads/2024/02/nwabali-1-1.jpg',
-            //     author: 'Channels',
-            //     category: 'Sports',
-            //     newsTitle:
-            //         "‘Disappointing End,’ Tearful Nwabali Apologises To Nigerian Fans After AFCON Loss",
-            //     authorPic:
-            //         'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS5MufvetN3MjDpfScmp-BwI3Idb4IgOy0CYQ&usqp=CAU',
-            //     date: DateTime(DateTime.daysPerWeek)),
-            // RecomCard(
-            //     imagepath:
-            //         'https://ichef.bbci.co.uk/news/976/cpsprodpb/D84B/production/_132617355_gettyimages-1235465347.jpg.webp',
-            //     author: 'BBC News',
-            //     category: 'Politics',
-            //     newsTitle:
-            //         'Herbert Wigwe: Nigerian bank chief killed in US helicopter crash',
-            //     authorPic:
-            //         'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIjXgWZk1TCbW6pKaPu_x0lgTL4mPHxF-RSQ&usqp=CAU',
-            //     date: DateTime(DateTime.daysPerWeek)),
-            // RecomCard(
-            //     imagepath:
-            //         'https://ichef.bbci.co.uk/news/976/cpsprodpb/FDEA/production/_132620056_crgettyimages-2003966267.jpg.webp',
-            //     author: 'BBC News',
-            //     category: 'Entertainment',
-            //     newsTitle:
-            //         'Usher joined by Alicia Keys and william Shines at Super Bowl half-time show',
-            //     authorPic:
-            //         'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSIjXgWZk1TCbW6pKaPu_x0lgTL4mPHxF-RSQ&usqp=CAU',
-            //     date: DateTime(DateTime.daysPerWeek)),
-            // RecomCard(
-            //     imagepath:
-            //         'https://media.cnn.com/api/v1/images/stellar/prod/gettyimages-1996273368.jpg?q=w_1110,c_fill/f_webp',
-            //     author: 'CNN News',
-            //     category: 'World',
-            //     newsTitle:
-            //         'Israeli airstrikes kill more than 100 in Rafah as international alarm mounts over anticipated ground offensive',
-            //     authorPic:
-            //         'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/CNN_International_logo.svg/600px-CNN_International_logo.svg.png',
-            //     date: DateTime(DateTime.daysPerWeek)),
-            // RecomCard(
-            //     imagepath:
-            //         'https://e0.365dm.com/24/02/1600x900/skysports-raducanu-tennis_6453179.jpg?20240212141159',
-            //     author: 'Sky Sports',
-            //     category: 'Sports',
-            //     newsTitle: 'Emma Raducanu slips to straight sets loss in Qatar',
-            //     authorPic:
-            //         'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNKi1PGe69CXH5kdj-OW5R2u1xJuqdr6l-nQ&usqp=CAU',
-            //     date: DateTime(DateTime.daysPerWeek)),
+            if (_isFetching)
+              const Center(child: CircularProgressIndicator())
+            else if (categoryNewsItems == null || categoryNewsItems!.isEmpty)
+              const Center(child: Text('No articles found'))
+            else
+              SizedBox(
+                height: MediaQuery.of(context).size.height,
+                width: MediaQuery.of(context).size.width,
+                child: ListView.builder(
+                  itemCount: categoryNewsItems!.length,
+                  itemBuilder: (context, index) {
+                    final article = categoryNewsItems![index];
+                    return RecomCard(article);
+                  },
+                ),
+              ),
           ],
         ),
       ),

@@ -1,7 +1,9 @@
+import 'package:bloggie/Models/NewsList.dart';
 import 'package:bloggie/Screens/Discover.dart';
 import 'package:bloggie/Screens/HomeScreen.dart';
 import 'package:bloggie/Screens/ProfilePage.dart';
 import 'package:bloggie/Screens/SavedPage.dart';
+import 'package:bloggie/constants.dart';
 import 'package:flutter/material.dart';
 
 class BottomTabBar extends StatefulWidget {

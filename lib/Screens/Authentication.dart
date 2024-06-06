@@ -29,6 +29,7 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     _passwordVisible = false;
   }
+
   ///   CRUD
 
   final _formKey = GlobalKey<FormState>();
@@ -118,7 +119,7 @@ class _AuthScreenState extends State<AuthScreen> {
           child: Column(
             children: [
               HeaderContainer(_isLogin
-                  ? "Let's help you Sign in"
+                  ? "News And Blog Mobile Application"
                   : "Let's help you Register"),
               const SizedBox(
                 height: 20.0,

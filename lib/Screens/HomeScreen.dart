@@ -7,7 +7,8 @@ import 'package:bloggie/Screens/RecomForYou.dart';
 import 'package:bloggie/Screens/Settings.dart';
 import 'package:bloggie/Widgets/recomCard.dart';
 import 'package:bloggie/Models/NewsList.dart';
-import 'package:bloggie/constants.dart';
+import 'package:bloggie/Widgets/request_queue.dart';
+
 import 'package:flutter/material.dart';
 import 'package:bloggie/Widgets/newsCard.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,22 +24,131 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String selectedCategory = 'news';
+  List<Article>? categoryNewsItems;
+  List<dynamic> searchResults = [];
+  bool _isFetching = false;
+  late var requestQueue = RequestQueue();
+
   @override
   void initState() {
     super.initState();
+    fetchCategoryNews(selectedCategory);
+    requestQueue = RequestQueue();
+  }
 
-    fetchNewsArticles();
+  void handleSearch(String query) async {
+    final results = await searchNews(query);
+    setState(() {
+      searchResults = results;
+    });
+  }
+
+  Future<List<dynamic>> searchNews(String query) async {
+    final url = Uri.https('api.newscatcherapi.com', '/v2/search', {
+      'q': query,
+      'page_size': '10',
+      'page': '1',
+      'lang': 'en',
+      'from': '2023/2/15',
+      'countries': 'NG,US,FR,DE,IL,SA',
+    });
+
+    final response = await http.get(url, headers: {
+      'x-api-key': 'pTicM1Rrp-AqsVAgkdh5_Rgqko8Md5A_COfpZ01qArU',
+    });
+    print('API Response44444: ${response.body}');
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final articles = data['articles'];
+      return articles;
+    } else {
+      // Handle error
+      print('Error444444: ${response.statusCode}');
+      return [];
+    }
+  }
+
+  Future<List<Article>?> fetchCategoryNews(String category) async {
+    print('fetchCategoryNews called with category: $category');
+    return requestQueue.enqueue(() async {
+      if (_isFetching ||
+          category == selectedCategory && categoryNewsItems != null) {
+        return categoryNewsItems;
+      }
+      setState(() {
+        _isFetching = true;
+      });
+
+      try {
+        await Future.delayed(const Duration(seconds: 2));
+
+        final url =
+            'https://api.newscatcherapi.com/v2/latest_headlines?lang=en&countries=US&topic=${category.toLowerCase()}';
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {'x-api-key': 'pTicM1Rrp-AqsVAgkdh5_Rgqko8Md5A_COfpZ01qArU'},
+        );
+
+        print('API Response: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> jsonData = json.decode(response.body);
+          final List<dynamic> newsArticles = jsonData['articles'];
+          categoryNewsItems = _filterDuplicateArticles(newsArticles
+              .map((article) =>
+                  Article.fromJson(article as Map<String, dynamic>))
+              .toList());
+
+          setState(() {
+            selectedCategory = category;
+
+            _isFetching = false;
+          });
+          print('Fetched news articles: ${categoryNewsItems!.length}');
+          for (var article in categoryNewsItems!) {
+            print('Article Category: ${article.newsTopic}');
+          }
+          return categoryNewsItems!;
+        } else if (response.statusCode == 429) {
+          // Rate limit exceeded, introduce a delay before retrying
+          await Future.delayed(const Duration(seconds: 4));
+          return fetchCategoryNews(category);
+        } else {
+          print('Failed to fetch news: ${response.statusCode}');
+          print('Fetching news for category: $category');
+          return [];
+        }
+      } catch (e) {
+        print('Error fetching news: $e');
+        return [];
+      } finally {
+        setState(() {
+          _isFetching = false;
+        });
+      }
+    });
+  }
+
+  void _handleCategoryButtonPress(String category) async {
+    final categoryNews = await fetchCategoryNews(category);
+    setState(() {
+      categoryNewsItems = categoryNews;
+    });
   }
 
   Future<List<Article>> fetchNewsArticles() async {
-    const apikey = '08e65243a1ea41c1bbb42024495014b0';
+    const url =
+        'https://api.newscatcherapi.com/v2/latest_headlines?lang=en&countries=NG';
 
     try {
-      final response = await http.get(Uri.parse(
-          'https://newsapi.org/v2/top-headlines?country=us&apiKey=08e65243a1ea41c1bbb42024495014b0'));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'x-api-key': 'pTicM1Rrp-AqsVAgkdh5_Rgqko8Md5A_COfpZ01qArU'},
+      );
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonData = json.decode(response.body);
-        final List<dynamic> newsArticles = jsonData['articles'];
+        final List newsArticles = jsonData['articles'];
 
         return newsArticles
             .map((article) => Article.fromJson(article))
@@ -80,6 +190,20 @@ class _HomeScreenState extends State<HomeScreen> {
         });
   }
 
+  List<Article> _filterDuplicateArticles(List<Article> articles) {
+    final uniqueArticles = <Article>{};
+    final seenTitles = <String>{};
+
+    for (final article in articles) {
+      if (!seenTitles.contains(article.newsTitle)) {
+        seenTitles.add(article.newsTitle);
+        uniqueArticles.add(article);
+      }
+    }
+
+    return uniqueArticles.toList();
+  }
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _openDrawer() {
@@ -88,6 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    List<Article> _fetchedArticles = [];
+    List<Article> _fetchedCategoryNews = [];
     return Scaffold(
       key: _scaffoldKey,
       drawer: Drawer(
@@ -169,327 +295,287 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Bloggie'),
         automaticallyImplyLeading: false,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Container(
-                    height: 50.0,
-                    width: 50.0,
-                    decoration: BoxDecoration(
-                      border:
-                          Border.all(color: Colors.grey.shade300, width: 5.0),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      iconSize: 20.0,
-                      icon: const Icon(Icons.menu),
-                      onPressed: _openDrawer,
-                    ),
-                  ),
-                ),
-                const SizedBox(
-                  width: 229.0,
-                ),
-                Container(
-                  height: 50.0,
-                  width: 100.0,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(20.0),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      CircularIcon(
-                        iconButton: IconButton(
-                            onPressed: () {
-                              showSearch(
-                                  context: context,
-                                  delegate: CustomSearchDelegate());
-                            },
-                            icon: const Icon(Icons.search)),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          final List<Article> refreshedArtiicles = await fetchNewsArticles();
+          final List<Article>? refreshedCategoryNews =
+              await fetchCategoryNews(selectedCategory);
+          setState(() {
+            _fetchedArticles = refreshedArtiicles;
+            _fetchedCategoryNews = refreshedCategoryNews!;
+          });
+        },
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Container(
+                      height: 50.0,
+                      width: 50.0,
+                      decoration: BoxDecoration(
+                        border:
+                            Border.all(color: Colors.grey.shade300, width: 5.0),
+                        shape: BoxShape.circle,
                       ),
-                      CircularIcon(
-                        iconButton: IconButton(
-                            onPressed: () {
-                              Navigator.of(context)
-                                  .pushReplacement(MaterialPageRoute(
-                                builder: (context) => const NotificationPage(),
-                              ));
-                            },
-                            icon: const Icon(Icons.notifications_none)),
+                      child: IconButton(
+                        iconSize: 20.0,
+                        icon: const Icon(Icons.menu),
+                        onPressed: _openDrawer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 229.0,
+                  ),
+                  Container(
+                    height: 50.0,
+                    width: 100.0,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        CircularIcon(
+                          iconButton: IconButton(
+                              onPressed: () async {
+                                searchResults = await searchNews('');
+                                showSearch(
+                                  context: context,
+                                  delegate: CustomSearchDelegate(
+                                    searchCallback: handleSearch,
+                                    searchResults: searchResults,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.search)),
+                        ),
+                        CircularIcon(
+                          iconButton: IconButton(
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .pushReplacement(MaterialPageRoute(
+                                  builder: (context) =>
+                                      const NotificationPage(),
+                                ));
+                              },
+                              icon: const Icon(Icons.notifications_none)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(
+                height: 10.0,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Breaking News',
+                        style: TextStyle(
+                            fontSize: 24.0, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(
+                        width: 135,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (context) => BreakingNewsPage(
+                              articles: _fetchedArticles,
+                            ),
+                          ));
+                        },
+                        child: const Text(
+                          'Show More',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(
-              height: 10.0,
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                child: Row(
-                  children: [
-                    const Text(
-                      'Breaking News',
-                      style: TextStyle(
-                          fontSize: 24.0, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(
-                      width: 135,
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacement(MaterialPageRoute(
-                          builder: (context) => const BreakingNewsPage(),
-                        ));
-                      },
-                      child: const Text(
-                        'Show More',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ),
-            FutureBuilder<List<Article>>(
-              future: fetchNewsArticles(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                } else if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                } else {
-                  final newsItems = snapshot.data ?? [];
-                  return Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: SizedBox(
-                      height: 200,
-                      width: double.infinity,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: newsItems.length,
-                          padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                          itemBuilder: (context, index) {
-                            final article = newsItems[index];
-                            return Padding(
+              FutureBuilder<List<Article>>(
+                future: fetchNewsArticles(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  } else if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('Failed to fetch news. Please refresh.'),
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() {});
+                            },
+                            child: const Text('Refresh'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    if (snapshot.data == null || snapshot.data!.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text('No news available. Please refresh.'),
+                            ElevatedButton(
+                              onPressed: () {
+                                setState(() {});
+                              },
+                              child: const Text('Refresh'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      final newsItems = snapshot.data!;
+                      _fetchedArticles = newsItems;
+                      return Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: SizedBox(
+                          height: 200,
+                          width: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: newsItems.length,
                               padding:
-                                  const EdgeInsets.symmetric(horizontal: 8.0),
-                              child: NewsCard(article),
-                            );
+                                  const EdgeInsets.symmetric(horizontal: 2.0),
+                              itemBuilder: (context, index) {
+                                final article = newsItems[index];
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8.0),
+                                  child: NewsCard(article),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              const SizedBox(
+                height: 18.0,
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      'News',
+                      'Politics',
+                      'Sport',
+                      'World',
+                      'Gaming',
+                      'Finance',
+                      'Tech',
+                      'Entertainment',
+                      'Business',
+                      'Economics',
+                      'Music',
+                      'Science',
+                      'Travel',
+                      'Beauty',
+                      'Food',
+                      'Energy'
+                    ].map((category) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 10.0),
+                        child: CategoryCard(
+                          category: category,
+                          onTap: () {
+                            print('hello world $category');
+                            _handleCategoryButtonPress(category);
                           },
                         ),
-                      ),
-                    ),
-                  );
-                }
-              },
-            ),
-
-            // Container(
-            //   height: 200,
-            //   child: ListView.builder(
-            //     scrollDirection: Axis.horizontal,
-            //     physics: const AlwaysScrollableScrollPhysics(),
-            //     itemCount: widget.newsItems.length,
-            //     itemBuilder: (context, index) {
-            //       final article = widget.newsItems[index];
-            //       return NewsCard(
-            //         imagepath: article.newsImage,
-            //         title: article.newsTitle,
-            //         category: 'Tech',
-            //       );
-            //     },
-            //     // child: Row(
-            //     //   children: [
-            //     //     NewsCard(
-            //     //       imagepath:
-            //     //           'https://media.cnn.com/api/v1/images/stellar/prod/gettyimages-1845882546.jpg?c=16x9&q=h_653,w_1160,c_fill/f_webp',
-            //     //       title:
-            //     //           'Elon Musk says Tesla shareholders will vote ‘immediately’ on quitting Delaware for Texas',
-            //     //       category: 'Tech',
-            //     //     ),
-            //     //     SizedBox(
-            //     //       width: 30.0,
-            //     //     ),
-            //     //     NewsCard(
-            //     //       imagepath:
-            //     //           'https://e0.365dm.com/24/01/768x432/skysports-mohamed-salah-liverpool_6426155.jpg?20240118225944',
-            //     //       title:
-            //     //           'MO SALAH CRASHES OUT OF THE AFCON DUE TO INJURY',
-            //     //       category: 'Sports',
-            //     //     ),
-            //     //     SizedBox(
-            //     //       width: 30.0,
-            //     //     ),
-            //     //     NewsCard(
-            //     //       imagepath:
-            //     //           'https://e0.365dm.com/21/01/2048x1152/skysports-rod-laver-arena-australian-open_5254947.jpg?20210130071317',
-            //     //       title: 'WIMBLEDON TENNIS FINAL CLASH',
-            //     //       category: 'Sports',
-            //     //     ),
-            //     //   ],
-            //     // ),
-            //   ),
-            // ),
-            const SizedBox(
-              height: 18.0,
-            ),
-            const SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    CategoryCard(category: 'All'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Politics'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Sports'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Education'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Gaming'),
-                    SizedBox(
-                      width: 10.0,
-                    ),
-                    CategoryCard(category: 'Socials'),
-                  ],
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(
-              height: 7.0,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  children: [
-                    const Text(
-                      'Recommended for You.',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 22.0,
-                          color: Colors.black),
-                    ),
-                    const SizedBox(
-                      width: 50.0,
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pushReplacement(MaterialPageRoute(
-                          builder: (context) => const RecomForYouPage(),
-                        ));
-                      },
-                      child: const Text(
-                        'Show more',
+              const SizedBox(
+                height: 7.0,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Recommended for You.',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 12.0,
-                            color: Colors.grey),
+                            fontSize: 22.0,
+                            color: Colors.black),
                       ),
-                    ),
-                  ],
+                      const SizedBox(
+                        width: 50.0,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context)
+                              .pushReplacement(MaterialPageRoute(
+                            builder: (context) => CategoryButtonTest(),
+                          ));
+                        },
+                        child: const Text(
+                          'Show more',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.0,
+                              color: Colors.grey),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(
-              height: 0.1,
-            ),
-            getArticleList(),
-            getArticleList(),
-            getArticleList(),
-            getArticleList(),
-            getArticleList(),
-          ],
+              const SizedBox(
+                height: 0.1,
+              ),
+              if (_isFetching)
+                const Center(child: CircularProgressIndicator())
+              else if (categoryNewsItems == null || categoryNewsItems!.isEmpty)
+                const Center(child: Text('No articles found'))
+              else
+                SizedBox(
+                  height: MediaQuery.of(context).size.height,
+                  width: MediaQuery.of(context).size.width,
+                  child: ListView.builder(
+                    itemCount: categoryNewsItems!.length,
+                    itemBuilder: (context, index) {
+                      final article = categoryNewsItems![index];
+                      return RecomCard(article);
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-class CustomSearchDelegate extends SearchDelegate {
-  List<String> searchArticles = [];
-
-  @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(
-          onPressed: () {
-            query = '';
-          },
-          icon: const Icon(Icons.clear))
-    ];
-  }
-
-  @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-        onPressed: () {
-          close(context, null);
-        },
-        icon: const Icon(Icons.arrow_back));
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    List<String> matchQuery = [];
-    for (var articles in searchArticles) {
-      if (articles.toLowerCase().contains(query.toLowerCase())) {
-        matchQuery.add(articles);
-      }
-    }
-    return ListView.builder(
-      itemCount: matchQuery.length,
-      itemBuilder: (context, index) {
-        var results = matchQuery[index];
-        return ListTile(
-          title: Text(results),
-        );
-      },
-    );
-  }
-
-  @override
-  String get searchFieldLabel => "Let's help you find an article";
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    List<String> matchQuery = [];
-    for (var articles in searchArticles) {
-      if (articles.toLowerCase().contains(query.toLowerCase())) {
-        matchQuery.add(articles);
-      }
-    }
-    return ListView.builder(
-      itemCount: matchQuery.length,
-      itemBuilder: (context, index) {
-        var results = matchQuery[index];
-        return ListTile(
-          title: Text(results),
-        );
-      },
     );
   }
 }
@@ -519,6 +605,71 @@ class _CircularIconState extends State<CircularIcon> {
       child: Center(
         child: widget.iconButton,
       ),
+    );
+  }
+}
+
+class CustomSearchDelegate extends SearchDelegate<String> {
+  List<dynamic> searchResults = [];
+  final Function(String) searchCallback;
+  final Article? article;
+  String _searchQuery = '';
+
+  CustomSearchDelegate({
+    required this.searchCallback,
+    required this.searchResults,
+    this.article,
+  });
+
+  @override
+  List<Widget> buildActions(BuildContext context) {
+    return [
+      IconButton(
+          onPressed: () {
+            query = '';
+            _searchQuery = '';
+          },
+          icon: const Icon(Icons.clear))
+    ];
+  }
+
+  @override
+  String get query => _searchQuery;
+
+  @override
+  Widget buildLeading(BuildContext context) {
+    return IconButton(
+        onPressed: () {
+          close(context, '');
+        },
+        icon: const Icon(Icons.arrow_back));
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    searchCallback(_searchQuery);
+    return ListView.builder(
+      itemCount: searchResults.length,
+      itemBuilder: (context, index) {
+        final result = searchResults[index];
+        return RecomCard(result);
+      },
+    );
+  }
+
+  @override
+  String get searchFieldLabel => "Let's help you find an article";
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    searchCallback(_searchQuery);
+
+    return ListView.builder(
+      itemCount: searchResults.length,
+      itemBuilder: (context, index) {
+        final result = searchResults[index];
+        return RecomCard(result);
+      },
     );
   }
 }

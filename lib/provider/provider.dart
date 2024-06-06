@@ -3,7 +3,14 @@ import 'package:bloggie/Models/NewsList.dart';
 
 class NewsProvider extends ChangeNotifier {
   Article _newsContent = Article(
-      newsAuthor: '', newsDate: '', newsImage: '', newsTitle: '', content: '');
+      newsAuthor: '',
+      newsDate: '',
+      media: '',
+      newsTitle: '',
+      content: '',
+      id: '',
+      newsUrl: '',
+      newsTopic: '');
 
   Article get article => _newsContent;
 

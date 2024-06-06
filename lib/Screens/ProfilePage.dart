@@ -66,14 +66,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: <Widget>[
                     CircleAvatar(
-                      minRadius: 30.0,
-                      backgroundColor: Colors.blue.shade600,
-                      child: const Icon(
-                        Icons.call,
-                        size: 30.0,
-                      ),
-                    ),
-                    CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.lightBlue.shade300,
                       child: CircleAvatar(
@@ -87,21 +79,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             )),
                       ),
                     ),
-                    CircleAvatar(
-                      minRadius: 30.0,
-                      backgroundColor: Colors.blue.shade600,
-                      child: const Icon(
-                        Icons.message,
-                        size: 30.0,
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(
                   height: 10,
                 ),
                 const Text(
-                  "David Cooks",
+                  "Ani Prince",
                   style: TextStyle(fontSize: 22.0, color: Colors.white),
                 ),
                 const Text(
@@ -126,7 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontSize: 24.0),
                     ),
                     subtitle: Text(
-                      "LIKES",
+                      "READS",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white),
                     ),
@@ -138,27 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: const Color.fromARGB(255, 147, 208, 239),
                   child: const ListTile(
                     title: Text(
-                      "11",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 24.0),
-                    ),
-                    subtitle: Text(
-                      "COMMENTS",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  color: Colors.blue,
-                  child: const ListTile(
-                    title: Text(
-                      "8",
+                      "0",
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: Colors.white,
@@ -168,7 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: Text(
                       "SAVES",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
@@ -181,7 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(color: Colors.blueAccent, fontSize: 12.0),
             ),
             subtitle: Text(
-              "davidcooks4@gmail.com",
+              "aniprince442@gmail.com",
               style: TextStyle(fontSize: 18.0),
             ),
           ),

@@ -1,9 +1,9 @@
-
 import 'package:bloggie/Navigations/BottomTabBar.dart';
 import 'package:bloggie/Screens/Authentication.dart';
 
 import 'package:bloggie/Screens/Splash.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart';
 import 'package:bloggie/provider/provider.dart';
 import 'package:flutter/material.dart';
@@ -14,14 +14,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(MultiProvider(providers: [
-    ChangeNotifierProvider(
-      create: (context) => NewsProvider(),
-    ),
-    ChangeNotifierProvider(
-      create: (context) => NewsImageProvider(),
-    )
-  ], child: const Bloggie()));
+  runApp(const ProviderScope(child: Bloggie()));
 }
 
 class Bloggie extends StatefulWidget {
